@@ -16,7 +16,7 @@ class Tweet():
     """
 
     def __init__(self, data, tracked_patterns, rm_stop_words=False, \
-        inflect_nb_to_words=True, tweet_min_len=10, \
+        inflect_nb_to_words=True, tweet_min_len=10, match_reply=False,\
         tweet_format='clean_txt', only_retweeted=False):
         self.data = data
         self.tracked_patterns = tracked_patterns
@@ -25,10 +25,13 @@ class Tweet():
         self.tweet_min_len = tweet_min_len
         self.tweet_format = tweet_format
         self.only_retweeted = only_retweeted
+        self.match_reply = match_reply
         self.inflect_nb = inflect.engine()
         self.JSON = self.get_JSON()
         self.raw_txt = self.get_raw_txt()
         self.clean_txt = self.get_clean_txt()
+        self.is_reply = self.JSON.get('in_reply_to_status_id_str', False)
+        self.is_reply = self.is_reply if self.is_reply else False
         self.check_compliance()
 
 
@@ -46,6 +49,11 @@ class Tweet():
         raw_txt = self.JSON.get('retweeted_status', {}) \
                            .get('extended_tweet', {}) \
                            .get('full_text', False)
+        raw_txt = self.JSON.get('retweeted_status', {}) \
+                           .get('full_text', False) \
+                           if raw_txt is False else raw_txt
+        raw_txt = self.JSON.get('full_text', False) \
+                           if raw_txt is False else raw_txt
         raw_txt = raw_txt if raw_txt else self.JSON.get('text', '')
         raw_txt = re.sub('\n|\t|\r', ' ', raw_txt) # Extra stip
         raw_txt = ' '.join(raw_txt.split()) # Remove extra spaces
@@ -119,3 +127,6 @@ class Tweet():
                 self.complies = True
             else:
                 self.complies = False
+        # Check reply
+        if self.complies and self.match_reply:
+            self.complies = True if self.is_reply else False

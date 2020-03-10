@@ -1,12 +1,13 @@
 import config
 import tweepy
-from tweepy import Stream, OAuthHandler
+from tweepy import Stream, OAuthHandler, Cursor
 from tweepy.streaming import StreamListener
 from DB_Manager import DB_Manager
 from Tweet import Tweet
 import re
 import time
 import os
+import json
 
 
 
@@ -34,10 +35,10 @@ class Listener(StreamListener):
 
 
     def __init__(self, tracked_keywords, tracked_patterns, languages, \
-        locations, file_path, inflect_nb_to_words=True, tweet_limit=10, \
+        locations, file_path, inflect_nb_to_words=False, tweet_limit=10, \
         tweet_min_len=10, tweet_format='clean_txt', from_scratch=True, \
-        rm_stop_words=False, checkpoint_rate=0.25, \
-        only_retweeted=False):
+        rm_stop_words=False, checkpoint_rate=0.25, follow=False,\
+        only_retweeted=False, match_reply=False):
         self.tracked_keywords = tracked_keywords
         self.tracked_patterns = tracked_patterns
         self.languages = languages
@@ -50,6 +51,9 @@ class Listener(StreamListener):
         self.from_scratch = from_scratch
         self.rm_stop_words = rm_stop_words
         self.only_retweeted = only_retweeted
+        self.match_reply = match_reply
+        self.follow = follow if follow else []
+        self.__get_follow_id()
         self.checkpoint_rate = 1.0 if checkpoint_rate is False \
                                  else checkpoint_rate
         self.checkpoint = int(round(self.checkpoint_rate * tweet_limit))
@@ -59,6 +63,15 @@ class Listener(StreamListener):
             file_path=file_path,
             tweet_format=tweet_format,
             from_scratch=from_scratch)
+
+
+    def __get_follow_id(self):
+        if self.follow:
+            user_objects = self.api.lookup_users(
+                screen_names=self.follow)
+            self.follow_ids = [user.id_str for user in user_objects]
+        else:
+            self.follow_ids = []
 
 
     def __tweet_listened(self):
@@ -102,7 +115,8 @@ class Listener(StreamListener):
         self.twitterStream.filter(
             track=self.tracked_keywords,
             languages=self.languages,
-            locations=self.locations)
+            locations=self.locations,
+            follow=self.follow_ids)
 
 
     def on_data(self, data):
@@ -119,13 +133,21 @@ class Listener(StreamListener):
                 tracked_patterns=self.tracked_patterns,
                 tweet_min_len=self.tweet_min_len,
                 tweet_format=self.tweet_format,
-                only_retweeted=self.only_retweeted)
+                only_retweeted=self.only_retweeted,
+                match_reply=self.match_reply)
 
             # Filter tweet the right format based on:
             # tracked patterns and min length
             if tweet.complies:
-                self.tweetDB.add_tweet(tweet)
-                self.__tweet_listened()
+                if self.match_reply:
+                    origin_tweet = self.find_origin_tweet(tweet)
+                    if origin_tweet:
+                        self.tweetDB.add_tweet(tweet)
+                        self.tweetDB.add_tweet(origin_tweet)
+                        self.__tweet_listened()
+                else:
+                    self.tweetDB.add_tweet(tweet)
+                    self.__tweet_listened()
 
         # Quit app when the tweet count is reached
         else:
@@ -150,3 +172,28 @@ class Listener(StreamListener):
         if enough_tweet:
             self.__end_stream()
             return False
+
+
+    def find_origin_tweet(self, tweet):
+        """
+        Find the first tweet is the current instance
+        is a reply tweet.
+        """
+        if tweet.is_reply:
+            try:
+                data = json.dumps(
+                    self.api.get_status(
+                        id=tweet.is_reply,
+                        tweet_mode="extended",
+                        wait_on_rate_limit=True)._json)
+                return Tweet(
+                    data=data,
+                    tracked_patterns=[],
+                    rm_stop_words=self.rm_stop_words,
+                    inflect_nb_to_words=self.inflect_nb_to_words,
+                    tweet_min_len=1,
+                    match_reply=False,
+                    tweet_format=self.tweet_format,
+                    only_retweeted=False)
+            except Exception as e:
+                pass
