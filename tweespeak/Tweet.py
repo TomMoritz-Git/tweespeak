@@ -17,7 +17,8 @@ class Tweet():
 
     def __init__(self, data, tracked_patterns, rm_stop_words=False, \
         inflect_nb_to_words=True, tweet_min_len=10, match_reply=False,\
-        tweet_format='clean_txt', only_retweeted=False):
+        tweet_format='clean_txt', only_retweeted=False, \
+        from_word2vec=False):
         self.data = data
         self.tracked_patterns = tracked_patterns
         self.rm_stop_words = rm_stop_words
@@ -26,6 +27,7 @@ class Tweet():
         self.tweet_format = tweet_format
         self.only_retweeted = only_retweeted
         self.match_reply = match_reply
+        self.from_word2vec = from_word2vec
         self.inflect_nb = inflect.engine()
         self.JSON = self.get_JSON()
         self.raw_txt = self.get_raw_txt()
@@ -39,7 +41,10 @@ class Tweet():
         """
         Return tweet as a JSON object (dict in Python).
         """
-        return json.loads(self.data)
+        if self.from_word2vec:
+            return json.loads('{"full_text": "' + self.data + '"}')
+        else:
+            return json.loads(self.data)
 
 
     def get_raw_txt(self):
@@ -107,10 +112,7 @@ class Tweet():
         tracked patterns and min length.
         """
         # Check the right tweet format
-        if self.tweet_format == 'clean_txt':
-            tweet = self.clean_txt
-        elif self.tweet_format in ['raw_txt', 'JSON']:
-            tweet = self.raw_txt
+        tweet = self.clean_txt
         # Check all regex match
         matches = 0
         for regex in self.tracked_patterns:

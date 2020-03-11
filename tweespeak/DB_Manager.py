@@ -1,4 +1,5 @@
 import os
+import pickle
 
 
 
@@ -24,7 +25,11 @@ class DB_Manager():
             mode = 'a'
         else:
             mode = 'w' if self.from_scratch else 'a'
-        self.DB_file = open(self.file_path, mode, encoding='utf-8')
+        if self.tweet_format == 'pickle':
+            mode += 'b'
+            self.DB_file = open(self.file_path, mode)
+        else:
+            self.DB_file = open(self.file_path, mode, encoding='utf-8')
 
 
     def add_tweet(self, tweet):
@@ -37,8 +42,14 @@ class DB_Manager():
         elif self.tweet_format == 'raw_txt':
             self.DB_file.write(tweet.raw_txt.strip() + '\n')
 
-        elif self.tweet_format == 'JSON':
+        elif self.tweet_format == 'JSON_txt':
             self.DB_file.write(tweet.data.strip() + '\n')
+
+        elif self.tweet_format == 'pickle':
+            pickle.dump(
+                tweet,
+                self.DB_file,
+                protocol=pickle.HIGHEST_PROTOCOL)
 
 
     def save(self):
