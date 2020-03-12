@@ -35,10 +35,10 @@ class Listener(StreamListener):
 
 
     def __init__(self, tracked_keywords, tracked_patterns, languages, \
-        locations, file_path, inflect_nb_to_words=False, tweet_limit=10, \
-        tweet_min_len=10, tweet_format='clean_txt', from_scratch=True, \
-        rm_stop_words=False, checkpoint_rate=0.25, follow=False,\
-        only_retweeted=False, match_reply=False):
+        locations, file_path, inflect_nb_to_words=False, \
+        tweet_limit=10, tweet_min_len=10, tweet_format='clean_txt', \
+        from_scratch=True, rm_stop_words=False, checkpoint_rate=0.25, \
+        follow=False, only_retweeted=False, match_reply=False):
         self.tracked_keywords = tracked_keywords
         self.tracked_patterns = tracked_patterns
         self.languages = languages
@@ -105,19 +105,24 @@ class Listener(StreamListener):
         """
         # Start listening
         print('Listening...')
-        self.twitterStream = Stream(
-            self.auth,
-            self,
-            tweet_mode="extended",
-            wait_on_rate_limit=True)
+        while True:
+            try:
+                self.twitterStream = Stream(
+                    self.auth,
+                    self,
+                    tweet_mode="extended",
+                    wait_on_rate_limit=True)
 
-        # Filter tweets based on keywords, languages and locations
-        self.twitterStream.filter(
-            track=self.tracked_keywords,
-            languages=self.languages,
-            locations=self.locations,
-            follow=self.follow_ids)
-
+                # Filter tweets based on keywords,
+                # languages and locations
+                self.twitterStream.filter(
+                    track=self.tracked_keywords,
+                    languages=self.languages,
+                    locations=self.locations,
+                    follow=self.follow_ids)
+            except:
+                continue
+            
 
     def on_data(self, data):
         """
